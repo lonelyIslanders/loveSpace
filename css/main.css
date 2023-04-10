@@ -1,0 +1,44 @@
+h1 {
+    position: relative;
+    top: 60px;
+    text-align: center;
+    text-shadow: 2px 2px 2px black;
+    font-family: 'Courier New', Courier, monospace;
+    color: pink;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+}
+
+.our {
+    font-size: 16px;
+    color: hotpink;
+    font-weight: 100;
+}
+
+html {
+    height: 100%;
+    background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+    overflow: hidden;
+}
+
+.underline {
+    text-decoration: underline;
+    font-weight: bold;
+}
+
+.svg {
+    vertical-align: middle;
+    height: 40px;
+}
+
+#ourInfoShowDiv {
+    /* position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); */
+    margin-top: 100px;
+    margin-left: 20px;
+}
