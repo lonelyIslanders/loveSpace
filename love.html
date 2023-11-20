@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="shortcut icon" href="http://yourk.top/loveSpace/icon/favicon.png" type="image/x-icon">
+  <link type="text/css" rel="stylesheet" href="./css/main.css" />
+  <script src="https://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+  <script src="./js/canvas-love.js"></script>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>love♥space</title>
+</head>
+
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+  }
+
+  .bg {
+    /* 歌词调整区 */
+    width: 100%;
+    /* 歌词显示盒子宽 */
+    height: 500px;
+    /* 歌词显示盒子高度，需要多显示几行歌词相应调大即可 */
+    /* background-color:#333; */
+    /* 歌词背景颜色 */
+    margin: 15px auto;
+    color: darkgrey;
+    /* 歌词默认颜色,灰色 */
+    font-size: 15px;
+    /* 歌词字体默认大小 */
+    overflow: hidden;
+    position: relative;
+    font-family: "微软雅黑";
+  }
+
+  .bg ul {
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    list-style: none;
+  }
+
+  .bg ul li {
+    width: 100%;
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+  }
+
+  .bg ul li.active {
+    /* 歌词高亮滚动区 */
+    color: green;
+    /* 歌词滚动高亮颜色 */
+    /* font-weight: bold; */
+    /* 文本加粗，不要，太丑了！ */
+    font-size: 20px;
+    /* 歌词滚动行文字大小 */
+  }
+
+  audio {
+    /* 播放器调整区 */
+    width: 100%;
+    /* 调整播放器宽度 */
+    /* 其他要修改播放器在这里修改 */
+  }
+
+  .bgm {
+    opacity: 0.3;
+    absolute: bottom;
+  }
+
+  .news {
+    text-decoration: none;
+  }
+
+  .thanks {
+    text-decoration: none;
+
+  }
+</style>
+
+<script>
+
+  var loveDataJson;
+  function getLoveData() {
+    const xhr = new XMLHttpRequest();
+    xhr.open('get', 'http://yourk.top:3000/loveData', false);
+    xhr.send();
+    if (xhr.readyState == 4 && xhr.status == 200) {
+      loveDataJson = xhr.responseText;
+      return console.log(JSON.parse(loveDataJson))
+    }
+  }
+
+
+
+
+
+
+  function lyricShow() {
+    function parseLyric(text) {
+      let lyricArr = text.split('\n');//获得换行分割的歌词[lyrics]
+      let result = new Array();
+      for (let i = 0; i < lyricArr.length; i++) {
+        let playTimeArr = lyricArr[i].match(/\[\d{2}:\d{2}((\.|\:)\d{2})\]/g);//得到这一句该播放的时间[time]
+        let lineLyric = '';//突出行歌词
+
+        if (lyricArr[i].split(playTimeArr).length > 0) {
+          lineLyric = lyricArr[i].split(playTimeArr);
+        }
+
+        if (playTimeArr !== null) {
+          for (let j = 0; j < playTimeArr.length; j++) {
+            let time = playTimeArr[j].substring(1, playTimeArr[j].indexOf("]")).split(":");
+            //数组填充
+            result.push({
+              time: (parseInt(time[0]) * 60 + parseFloat(time[1])).toFixed(4),
+              content: String(lineLyric).substr(1)
+            });
+          }
+        }
+      }
+      return result;
+    }
+
+    var xhr = new XMLHttpRequest();
+    console.log("要找的" + window.playSong);
+    xhr.open('get', `./lrc/${window.playSong}.lrc`, false);
+    xhr.send();
+    if (xhr.readyState == 4 && xhr.status == 200) {
+      var content = xhr.responseText;
+    }
+    if (xhr.status !== 200) {
+      console.log("暂无歌词");
+      var content = `[00:00.00]暂无歌词\n[00:00.00]${window.playSong}`;
+    }
+
+
+
+    let text = content;
+
+    let audio = document.querySelector('audio');
+
+    let result = parseLyric(text); //执行lyc解析
+
+
+    // 把生成的数据显示到界面上去
+    let $ul = $("<ul></ul>");
+    for (let i = 0; i < result.length; i++) {
+      let $li = $("<li></li>").text(result[i].content);
+      $ul.append($li);
+    }
+    $(".bg").append($ul);
+
+    let lineNo = 0; // 当前行歌词
+    let preLine = 8; // 当播放8行后开始滚动歌词
+    let lineHeight = -30; // 每次滚动的距离
+
+    // 滚动播放 歌词高亮  增加类名active
+    function highLight() {
+      let $li = $("li");
+      $li.eq(lineNo).addClass("active").siblings().removeClass("active");
+      if (lineNo > preLine) {
+        $ul.stop(true, true).animate({ top: (lineNo - preLine) * lineHeight });
+      }
+    }
+
+    highLight();
+
+    // 播放的时候不断渲染
+    audio.addEventListener("timeupdate", function () {
+      if (lineNo == result.length) return;
+      if ($("li").eq(0).hasClass("active")) {
+        $("ul").css("top", "0");
+      }
+      lineNo = getLineNo(audio.currentTime);
+      highLight();
+      lineNo++;
+    });
+
+    // 当快进或者倒退的时候，找到最近的后面那个result[i].time
+    function getLineNo(currentTime) {
+      if (currentTime >= parseFloat(result[lineNo].time)) {
+        // 快进
+        for (let i = result.length - 1; i >= lineNo; i--) {
+          if (currentTime >= parseFloat(result[i].time)) {
+            return i;
+          }
+        }
+      } else {
+        // 后退
+        for (let i = 0; i <= lineNo; i++) {
+          if (currentTime <= parseFloat(result[i].time)) {
+            return i - 1;
+          }
+        }
+      }
+    }
+
+    //播放结束
+    audio.addEventListener("ended", function () {
+      lineNo = 0;
+      highLight();
+      // audio.play();
+      $("ul").css("top", "0");
+    });
+  };
+
+
+
+
+
+
+
+
+
+
+  function compare(arr1, arr2) {
+    return arr1.concat(arr2).filter((v, i, arr) => {
+      return arr.indexOf(v) === arr.lastIndexOf(v)
+    })
+  }
+
+  function shaoArr(arr) {//得到乱序播放列表
+    for (i = 0; i < arr.length; i++) {
+      var randomIndex = Math.floor(Math.random() * arr.length);
+      var tempArr = arr[i];
+      arr[i] = arr[randomIndex];
+      arr[randomIndex] = tempArr
+    }
+    return arr;
+  }
+
+  var originalArr;//原歌曲数组
+  var playIndex = -1;//播放第几首
+  var chaoSongList;//乱序原数组
+  var cloneArr;//克隆原数组
+  function bgsound() {
+    var audio = document.getElementById('audio');
+    var bg = document.getElementById('bg');
+    bg.innerHTML = '';
+    const xhr = new XMLHttpRequest();
+    xhr.open('get', 'http://yourk.top:3000/music', false);
+    xhr.send();
+    if (xhr.status == 200 && xhr.readyState == 4) {
+      musicList = JSON.parse(xhr.responseText);
+      console.log("曲库：" + musicList.data);
+      if (originalArr == undefined) {//没有值再他妈赋值,caocaocaocaocaocaocaocao
+        originalArr = musicList.data;
+      }
+      if (originalArr !== undefined && JSON.stringify(originalArr) == JSON.stringify(musicList.data)) {//和上次请求一样，那么继续上次处理
+        console.log("和上次一样^_^");//和上次一样的话克隆原数组，original必定有值
+        cloneArr = originalArr.slice(0);
+      }
+      if (originalArr !== undefined && JSON.stringify(originalArr) !== JSON.stringify(musicList.data)) {
+        console.log("和上次不一样@_@");
+        var getDiff = compare(musicList.data, originalArr);//得到不一样的部分array,必定有内容的数组，不必担心[]
+        originalArr = musicList.data;//和上次请求不一样，重新赋值到original
+        cloneArr = originalArr.slice(0);//克隆最新的原数组
+      }
+    }
+
+    if (chaoSongList == undefined) {//主要是防止每次都妈的乱序，未乱序则乱序
+      chaoSongList = shaoArr(cloneArr);//拿到了乱序播放列表
+      console.log("首次乱序");
+    }
+    if (getDiff !== undefined && chaoSongList !== undefined) {
+      console.log("加入了新歌曲");
+      chaoSongList = chaoSongList.concat(getDiff);//拿到了乱序播放列表
+    }
+    console.log("最终乱序：" + chaoSongList);
+    var len = chaoSongList.length;//获得播放的歌曲总数
+    playIndex++;//待播放索引
+    if (playIndex == len) {//全部放完~一切重头再来
+      console.log("都___________________放______________________完____________________了____________________");
+      playIndex = -1;
+      originalArr = undefined;
+      chaoSongList = undefined;
+      bgsound();
+      return;
+    }
+    var song = chaoSongList[playIndex];
+    window.playSong = song.split('.')[0];//加到window对象上去
+    lyricShow();
+    console.log(`第${playIndex + 1}/${len}首：${song}`);
+
+    audio.src = `http://yourk.top/loveSpace/music/${song}`;
+    if (audio.paused) {
+      audio.play();
+      console.log("play")
+    }
+  }
+
+
+
+
+
+  function checkAudioIsEnded() {
+    var audio = document.getElementById('audio');
+    if (audio.src !== 'http://yourk.top/loveSpace/love.html' && audio.ended) {
+      console.log("放完了，切歌");
+      bgsound()
+    }
+  }
+
+
+
+
+  function checkAndUpload() {
+    document.getElementById('upFile').click();
+
+  }
+
+  // function uploadFile() {
+  //   var fileObj = document.getElementById('upFile').files;
+
+  //   console.log("有变化");
+  //   console.log(fileObj);//obj
+  //   console.log(fileObj[0])//文件信息
+  //   console.log(fileObj[0].name)
+  //   var myform = new FormData();
+  //   myform.append('upFile', fileObj[0]);
+
+  //   const xhr = new XMLHttpRequest();
+  //   xhr.open('post', 'http://yourk.top:3000/upload', true);
+  //   xhr.send(myform);
+  //   xhr.onreadystatechange = () => {
+  //     if (xhr.readyState == 4 && xhr.status == 200) {
+  //       console.log(xhr.responseText)
+  //     }
+  //   }
+  //   // if (xhr.readyState == 4 && xhr.status == 200) {
+  //   //   console.log(xhr.responseText);
+  //   // }
+  // }
+
+  function uploadFile() {
+    var fileObj = document.getElementById('upFile').files;
+
+    console.log("有变化");
+    console.log(fileObj);//obj
+    console.log(fileObj[0])//文件信息
+    console.log(fileObj[0].name)
+    var myform = new FormData();
+    myform.append('upFile', fileObj[0]);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("post", "http://yourk.top:3000/upload", true); //post方式，url为服务器请求地址，true 该参数规定请求是否异步处理。
+    xhr.onload = uploadComplete; //请求完成
+    xhr.onerror = uploadFailed; //请求失败
+
+    xhr.upload.onprogress = progressFunction;//【上传进度调用方法实现】
+    xhr.upload.onloadstart = function () {//上传开始执行方法
+      var progress = document.getElementById('progressBar');
+      progress.style.display = 'inline';
+      ot = new Date().getTime();   //设置上传开始时间
+      oloaded = 0;//设置上传开始时，以上传的文件大小为0
+
+    };
+
+
+    xhr.send(myform)
+  }
+
+
+  function uploadFailed(evt) {
+    console.log("上传失败！");
+  }
+
+  function uploadComplete(evt) {
+    //服务端接收完文件返回的结果
+    console.log(evt)
+    var data = evt.target.status;
+    if (data == 200) {
+      console.log("上传成功！");
+      var progress = document.getElementById('progressBar');
+      var percentage = document.getElementById('percentage');
+      progress.style.display = 'none';
+      percentage.style.display = 'none';
+    } else {
+      console.log("上传失败！");
+    }
+
+  }
+
+
+
+  function progressFunction(evt) {
+    var progressBar = document.getElementById("progressBar");
+    var percentageDiv = document.getElementById("percentage");
+    // event.total是需要传输的总字节，event.loaded是已经传输的字节。如果event.lengthComputable不为真，则event.total等于0
+    if (evt.lengthComputable) {//
+      progressBar.max = evt.total;
+      progressBar.value = evt.loaded;
+      percentageDiv.innerHTML = Math.floor(evt.loaded / evt.total * 100) + "%";
+    }
+
+    var time = document.getElementById("time");
+    var nt = new Date().getTime();//获取当前时间
+    var pertime = (nt - ot) / 1000; //计算出上次调用该方法时到现在的时间差，单位为s
+    ot = new Date().getTime(); //重新赋值时间，用于下次计算
+    var perload = evt.loaded - oloaded; //计算该分段上传的文件大小，单位b
+    oloaded = evt.loaded;//重新赋值已上传文件大小，用以下次计算
+    //上传速度计算
+    var speed = perload / pertime;//单位b/s
+    var bspeed = speed;
+    var units = 'b/s';//单位名称
+    if (speed / 1024 > 1) {
+      speed = speed / 1024;
+      units = 'k/s';
+    }
+    if (speed / 1024 > 1) {
+      speed = speed / 1024;
+      units = 'M/s';
+    }
+    speed = speed.toFixed(1);
+    //剩余时间
+    var resttime = ((evt.total - evt.loaded) / bspeed).toFixed(1);
+
+    // time.innerHTML = '，速度：' + speed + units + '，剩余时间：' + minutes;
+    // if (bspeed == 0) time.innerHTML = '上传已取消';
+  }
+
+
+
+
+
+  function loveData() {
+    if (loveDataJson == null) {
+      var b = document.getElementsByTagName('b');
+      console.log(b);
+      console.log("正在加载恋爱数据……");
+      getLoveData();
+      return;
+    }
+
+
+    togetherTime(JSON.parse(loveDataJson).togetherTime);
+    hisBirthdayTime(JSON.parse(loveDataJson).hisBirthdayTime);
+    herBirthdayTime(JSON.parse(loveDataJson).herBirthdayTime);
+    kissTime(JSON.parse(loveDataJson).kissTime);
+    makeLoveTime(JSON.parse(loveDataJson).makeLoveTime);
+    embraceTime(JSON.parse(loveDataJson).embraceTime);
+    handTime(JSON.parse(loveDataJson).handTime);
+    makeCakeTime(JSON.parse(loveDataJson).makeCakeTime);
+    checkAudioIsEnded();
+
+  }
+  window.onload = setInterval(() => {
+    loveData();
+  }, 1000);
+
+  function togetherTime(time) {
+    var together_day = document.getElementById('together_day');
+    var together_hour = document.getElementById('together_hour');
+    var togeter_minute = document.getElementById('together_minute');
+    var togeter_second = document.getElementById('together_second');
+
+    var unix_timestamp_together = new Date(time).getTime().toString().substring(0, 10);//得到在一起时间的时间戳
+    var unix_timestamp_now = new Date(nowTime()).getTime().toString().substring(0, 10);//得到当前时间的时间戳
+    var differ_unix_timestamp = unix_timestamp_now - unix_timestamp_together;
+    var day = differ_unix_timestamp / 86400;//得到在一起天数
+    var hour = (differ_unix_timestamp % 86400) / 3600;//得到在一起小时数
+    var minute = (differ_unix_timestamp % 3600) / 60;//得到在一起分钟数
+    var second = differ_unix_timestamp % 60;
+    together_day.innerText = parseInt(day);
+    together_hour.innerText = parseInt(hour);
+    together_minute.innerText = parseInt(minute);
+    together_second.innerText = parseInt(second);
+  }
+
+  function hisBirthdayTime(time) {
+    var hisBirthday_day = document.getElementById('hisBirthday_day');
+    var hisBirthday_hour = document.getElementById('hisBirthday_hour');
+    var hisBirthday_minute = document.getElementById('hisBirthday_minute');
+    var hisBirthday_second = document.getElementById('hisBirthday_second');
+
+    var unix_timestamp_hisBirthday = new Date(time).getTime().toString().substring(0, 10);
+    var unix_timestamp_now = new Date(nowTime()).getTime().toString().substring(0, 10);
+
+    if (unix_timestamp_hisBirthday > unix_timestamp_now) {
+      differ_unix_timestamp = unix_timestamp_hisBirthday;
+    }
+    else {
+      console.log("他的生日已经过了");//这里等下写个修改日期、、、、、、、、、、、、、、、、、、
+    }
+
+    var differ_unix_timestamp = unix_timestamp_hisBirthday - unix_timestamp_now;
+    var day = differ_unix_timestamp / 86400;
+    var hour = (differ_unix_timestamp % 86400) / 3600;
+    var minute = (differ_unix_timestamp % 3600) / 60;
+    var second = differ_unix_timestamp % 60;
+
+    hisBirthday_day.innerText = parseInt(day);
+    hisBirthday_hour.innerText = parseInt(hour);
+    hisBirthday_minute.innerText = parseInt(minute);
+    hisBirthday_second.innerText = parseInt(second);
+  }
+
+  function herBirthdayTime(time) {
+    var herBirthday_day = document.getElementById('herBirthday_day');
+    var herBirthday_hour = document.getElementById('herBirthday_hour');
+    var herBirthday_minute = document.getElementById('herBirthday_minute');
+    var herBirthday_second = document.getElementById('herBirthday_second');
+
+    var unix_timestamp_herBirthday = new Date(time).getTime().toString().substring(0, 10);
+    var unix_timestamp_now = new Date(nowTime()).getTime().toString().substring(0, 10);
+
+    if (unix_timestamp_herBirthday > unix_timestamp_now) {
+      differ_unix_timestamp = unix_timestamp_herBirthday;
+    }
+    else {
+      console.log("她的生日已经过了");//这里等下写个修改日期、、、、、、、、、、、、、、、、、、
+    }
+
+    var differ_unix_timestamp = unix_timestamp_herBirthday - unix_timestamp_now;
+    var day = differ_unix_timestamp / 86400;
+    var hour = (differ_unix_timestamp % 86400) / 3600;
+    var minute = (differ_unix_timestamp % 3600) / 60;
+    var second = differ_unix_timestamp % 60;
+
+    herBirthday_day.innerText = parseInt(day);
+    herBirthday_hour.innerText = parseInt(hour);
+    herBirthday_minute.innerText = parseInt(minute);
+    herBirthday_second.innerText = parseInt(second);
+  }
+
+  function kissTime(time) {
+    var kissTime_day = document.getElementById('kissTime_day');
+    var kissTime_hour = document.getElementById('kissTime_hour');
+    var kissTime_minute = document.getElementById('kissTime_minute');
+    var kissTime_second = document.getElementById('kissTime_second');
+
+    var unix_timestamp_kissTime = new Date(time).getTime().toString().substring(0, 10);
+    var unix_timestamp_now = new Date(nowTime()).getTime().toString().substring(0, 10);
+    var differ_unix_timestamp = unix_timestamp_now - unix_timestamp_kissTime;
+    var day = differ_unix_timestamp / 86400;
+    var hour = (differ_unix_timestamp % 86400) / 3600;
+    var minute = (differ_unix_timestamp % 3600) / 60;
+    var second = differ_unix_timestamp % 60;
+    kissTime_day.innerText = parseInt(day);
+    kissTime_hour.innerText = parseInt(hour);
+    kissTime_minute.innerText = parseInt(minute);
+    kissTime_second.innerText = parseInt(second);
+  }
+
+  function makeLoveTime(time) {
+    var makeLoveTime_day = document.getElementById('makeLoveTime_day');
+    var makeLoveTime_hour = document.getElementById('makeLoveTime_hour');
+    var makeLoveTime_minute = document.getElementById('makeLoveTime_minute');
+    var makeLoveTime_second = document.getElementById('makeLoveTime_second');
+
+    var unix_timestamp_makeloveTime = new Date(time).getTime().toString().substring(0, 10);
+    var unix_timestamp_now = new Date(nowTime()).getTime().toString().substring(0, 10);
+    var differ_unix_timestamp = unix_timestamp_now - unix_timestamp_makeloveTime;
+    var day = differ_unix_timestamp / 86400;
+    var hour = (differ_unix_timestamp % 86400) / 3600;
+    var minute = (differ_unix_timestamp % 3600) / 60;
+    var second = differ_unix_timestamp % 60;
+    makeLoveTime_day.innerText = parseInt(day);
+    makeLoveTime_hour.innerText = parseInt(hour);
+    makeLoveTime_minute.innerText = parseInt(minute);
+    makeLoveTime_second.innerText = parseInt(second);
+  }
+
+  function embraceTime(time) {
+    var embraceTime_day = document.getElementById('embraceTime_day');
+    var embraceTime_hour = document.getElementById('embraceTime_hour');
+    var embraceTime_minute = document.getElementById('embraceTime_minute');
+    var embraceTime_second = document.getElementById('embraceTime_second');
+
+    var unix_timestamp_embraceTime = new Date(time).getTime().toString().substring(0, 10);
+    var unix_timestamp_now = new Date(nowTime()).getTime().toString().substring(0, 10);
+    var differ_unix_timestamp = unix_timestamp_now - unix_timestamp_embraceTime;
+    var day = differ_unix_timestamp / 86400;
+    var hour = (differ_unix_timestamp % 86400) / 3600;
+    var minute = (differ_unix_timestamp % 3600) / 60;
+    var second = differ_unix_timestamp % 60;
+    embraceTime_day.innerText = parseInt(day);
+    embraceTime_hour.innerText = parseInt(hour);
+    embraceTime_minute.innerText = parseInt(minute);
+    embraceTime_second.innerText = parseInt(second);
+  }
+
+  function handTime(time) {
+    var handTime_day = document.getElementById('handTime_day');
+    var handTime_hour = document.getElementById('handTime_hour');
+    var handTime_minute = document.getElementById('handTime_minute');
+    var handTime_second = document.getElementById('handTime_second');
+
+    var unix_timestamp_handTime = new Date(time).getTime().toString().substring(0, 10);
+    var unix_timestamp_now = new Date(nowTime()).getTime().toString().substring(0, 10);
+    var differ_unix_timestamp = unix_timestamp_now - unix_timestamp_handTime;
+    var day = differ_unix_timestamp / 86400;
+    var hour = (differ_unix_timestamp % 86400) / 3600;
+    var minute = (differ_unix_timestamp % 3600) / 60;
+    var second = differ_unix_timestamp % 60;
+    handTime_day.innerText = parseInt(day);
+    handTime_hour.innerText = parseInt(hour);
+    handTime_minute.innerText = parseInt(minute);
+    handTime_second.innerText = parseInt(second);
+  }
+
+  function makeCakeTime(time) {
+    var makeCakeTime_day = document.getElementById('makeCakeTime_day');
+    var makeCakeTime_hour = document.getElementById('makeCakeTime_hour');
+    var makeCakeTime_minute = document.getElementById('makeCakeTime_minute');
+    var makeCakeTime_second = document.getElementById('makeCakeTime_second');
+
+    var unix_timestamp_makeCakeTime = new Date(time).getTime().toString().substring(0, 10);
+    var unix_timestamp_now = new Date(nowTime()).getTime().toString().substring(0, 10);
+    var differ_unix_timestamp = unix_timestamp_now - unix_timestamp_makeCakeTime;
+    var day = differ_unix_timestamp / 86400;
+    var hour = (differ_unix_timestamp % 86400) / 3600;
+    var minute = (differ_unix_timestamp % 3600) / 60;
+    var second = differ_unix_timestamp % 60;
+    makeCakeTime_day.innerText = parseInt(day);
+    makeCakeTime_hour.innerText = parseInt(hour);
+    makeCakeTime_minute.innerText = parseInt(minute);
+    makeCakeTime_second.innerText = parseInt(second);
+  }
+
+  function nowTime() {
+    var now = new Date();
+    var year = now.getFullYear();
+    var month = now.getMonth() + 1;
+    month = (month < 10 ? "0" + month : month);
+    var day = now.getDate();
+    day = (day < 10 ? "0" + day : day);
+    var hours = now.getHours();
+    hours = (hours < 10 ? "0" + hours : hours);
+    var minutes = now.getMinutes();
+    minutes = (minutes < 10 ? "0" + minutes : minutes);
+    var seconds = now.getSeconds();
+    seconds = (seconds < 10 ? "0" + seconds : seconds);
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+
+</script>
+
+
+<body>
+  <!-- <div class="g-container">
+    <p>❤</p>
+  </div> -->
+  <script type="text/javascript" color="255,192,202" opacity='0.7' zIndex="-2" count="150"
+    src="http://yourk.top/loveSpace/js/canvas-next.min.js"></script>
+
+
+  <h1>LOVE<span onclick="bgsound()">💗</span><span onclick="checkAndUpload()">SPACE</span><br> <progress
+      id="progressBar" value="0" max="100" style="width: 250px; display: none; ">
+    </progress>
+    <!--歌词显示div-->
+    <div class="bg" id="bg" ;></div>
+    <span style=" color: red; display: inline;" id="percentage"></span>
+  </h1>
+
+
+  <audio id="audio" src="" preload="">
+  </audio>
+
+  <div id="ourdiv">
+    <div><svg t="1633846419891" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
+        p-id="10752" width="30" height="200">
+        <path
+          d="M512 901.746939c-13.583673 0-26.122449-4.179592-37.093878-13.061225-8.881633-7.314286-225.697959-175.020408-312.424489-311.379592C133.746939 532.37551 94.040816 471.24898 94.040816 384.522449c0-144.718367 108.146939-262.269388 240.326531-262.269388 67.395918 0 131.657143 30.82449 177.632653 84.636735 45.453061-54.334694 109.191837-84.636735 177.110204-84.636735 132.702041 0 240.326531 117.55102 240.326531 262.269388 0 85.159184-37.093878 143.673469-67.395919 191.216327l-1.044898 1.567346c-86.726531 136.359184-303.542857 304.587755-312.424489 311.379592-10.44898 8.359184-22.987755 13.061224-36.571429 13.061225z"
+          fill="#d81e06" p-id="10753"></path>
+      </svg>
+      <!--我们在一起标签string-->
+      <span class="together we">我们在一起：</span>
+      <!--天数数字标签number-->
+      <u class="days"><b id="together_day">
+        </b></u>
+      <!--天字标签string-->
+      <span class="tian">天</span>
+      <!--小时数字标签number-->
+      <u class="days"><b id="together_hour">
+        </b></u>
+      <!--时字标签-->
+      <span class="days">时</span>
+      <!--分钟数字标签-->
+      <u class="days"><b id="together_minute">
+        </b></u>
+      <!--分字标签-->
+      <span class="days">分</span>
+      <!--秒数数字标签-->
+      <u class="days"><b id="together_second">
+        </b></u>
+      <!--秒字标签-->
+      <span class="days">秒</span>
+
+    </div>
+    <div><svg t="1633846727177" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
+        p-id="12163" width="30" height="200">
+        <path
+          d="M671 572.2l-60.5 22.3L570 593l-57.5-20.5L463 591l-42 3.7-56.5-22.2-81.1 22.2V744l308.1 15.5 149.1-6.6V594.7zM512 338.9c20.5 0 37.1-16.6 37.1-37.1s-19-67.9-37.1-82.4c0 53.4-37.1 61.9-37.1 82.4 0 20.5 16.6 37.1 37.1 37.1z"
+          fill="#FFC999" p-id="12164"></path>
+        <path
+          d="M877.3 750.3c-2.8-5.8-8.6-9.4-15-9.4H752.6V514.8c0-17.6-14.4-32-32-32H559.4v-88.3c0-12.1-9.9-22-22-22h-50.9c-12.1 0-22 9.9-22 22v88.3H303.4c-17.6 0-32 14.4-32 32V741H161.8c-6.4 0-12.2 3.6-15 9.4-2.8 5.8-2.1 12.5 1.9 17.6l27.2 34.7c6.9 8.8 17.3 13.9 28.6 13.9h615.2c11.2 0 21.6-5.1 28.6-13.9l27.2-34.7c3.9-5.1 4.6-11.9 1.8-17.7zM488.6 396.4h46.9v86.3h-46.9v-86.3zM295.4 514.8c0-4.4 3.6-8 8-8h417.1c4.4 0 8 3.6 8 8v67.8c-11.8-0.8-18.1-4.6-25.9-9.3-10-6.1-21.3-13-43.1-13s-33.1 6.9-43.1 13c-8.7 5.3-15.6 9.5-30.6 9.5s-21.9-4.2-30.6-9.5c-10-6.1-21.3-13-43.1-13s-33.1 6.9-43.1 13c-8.7 5.3-15.6 9.5-30.6 9.5-15.1 0-21.9-4.2-30.6-9.5-10-6.1-21.3-13-43.1-13s-33.1 6.9-43.1 13c-7.7 4.7-14 8.5-25.9 9.3v-67.8z m0 91.8c18.7-0.9 29.1-7.3 38.4-12.9 8.7-5.3 15.6-9.5 30.6-9.5 15.1 0 21.9 4.2 30.6 9.5 10 6.1 21.3 13 43.1 13s33.1-6.9 43.1-13c8.7-5.3 15.6-9.5 30.6-9.5 15.1 0 21.9 4.2 30.6 9.5 10 6.1 21.3 13 43.1 13s33.1-6.9 43.1-13c8.7-5.3 15.6-9.5 30.6-9.5 15.1 0 21.9 4.2 30.6 9.5 9.2 5.6 19.6 12 38.4 12.9V741H295.4V606.6z m533.9 181.3c-2.3 3-5.9 4.7-9.7 4.7H204.4c-3.8 0-7.3-1.7-9.7-4.7l-18-22.9h670.5l-17.9 22.9zM512 350.9c27.1 0 49.1-22 49.1-49.1 0-24.4-21-75.2-41.6-91.7-3.6-2.9-8.5-3.4-12.7-1.4-4.2 2-6.8 6.2-6.8 10.8 0 28.4-11.6 41.4-21.9 52.9-7.5 8.4-15.2 17-15.2 29.4 0 27.1 22 49.1 49.1 49.1z m-16-62.6c7.7-8.6 18-20.2 23.8-38.8 9.5 17.6 17.4 40.5 17.4 52.2 0 13.8-11.3 25.1-25.1 25.1S487 315.5 487 301.7c-0.1-3.2 4.1-7.9 9-13.4z"
+          fill="#FF8200" p-id="12165"></path>
+      </svg>
+      <!--他的生日还有标签string-->
+      <span class="together we">他的生日还有：</span>
+      <!--天数数字标签number-->
+      <u class="days"><b id="hisBirthday_day">
+        </b></u>
+      <!--天字标签string-->
+      <span class="tian">天</span>
+      <!--小时数字标签number-->
+      <u class="days"><b id="hisBirthday_hour">
+        </b></u>
+      <!--时字标签-->
+      <span class="days">时</span>
+      <!--分钟数字标签-->
+      <u class="days"><b id="hisBirthday_minute">
+        </b></u>
+      <!--分字标签-->
+      <span class="days">分</span>
+      <!--秒数数字标签-->
+      <u class="days"><b id="hisBirthday_second">
+        </b></u>
+      <!--秒字标签-->
+      <span class="days">秒</span>
+    </div>
+    <div><svg t="1633846727177" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
+        p-id="12163" width="30" height="200">
+        <path
+          d="M671 572.2l-60.5 22.3L570 593l-57.5-20.5L463 591l-42 3.7-56.5-22.2-81.1 22.2V744l308.1 15.5 149.1-6.6V594.7zM512 338.9c20.5 0 37.1-16.6 37.1-37.1s-19-67.9-37.1-82.4c0 53.4-37.1 61.9-37.1 82.4 0 20.5 16.6 37.1 37.1 37.1z"
+          fill="#FFC999" p-id="12164"></path>
+        <path
+          d="M877.3 750.3c-2.8-5.8-8.6-9.4-15-9.4H752.6V514.8c0-17.6-14.4-32-32-32H559.4v-88.3c0-12.1-9.9-22-22-22h-50.9c-12.1 0-22 9.9-22 22v88.3H303.4c-17.6 0-32 14.4-32 32V741H161.8c-6.4 0-12.2 3.6-15 9.4-2.8 5.8-2.1 12.5 1.9 17.6l27.2 34.7c6.9 8.8 17.3 13.9 28.6 13.9h615.2c11.2 0 21.6-5.1 28.6-13.9l27.2-34.7c3.9-5.1 4.6-11.9 1.8-17.7zM488.6 396.4h46.9v86.3h-46.9v-86.3zM295.4 514.8c0-4.4 3.6-8 8-8h417.1c4.4 0 8 3.6 8 8v67.8c-11.8-0.8-18.1-4.6-25.9-9.3-10-6.1-21.3-13-43.1-13s-33.1 6.9-43.1 13c-8.7 5.3-15.6 9.5-30.6 9.5s-21.9-4.2-30.6-9.5c-10-6.1-21.3-13-43.1-13s-33.1 6.9-43.1 13c-8.7 5.3-15.6 9.5-30.6 9.5-15.1 0-21.9-4.2-30.6-9.5-10-6.1-21.3-13-43.1-13s-33.1 6.9-43.1 13c-7.7 4.7-14 8.5-25.9 9.3v-67.8z m0 91.8c18.7-0.9 29.1-7.3 38.4-12.9 8.7-5.3 15.6-9.5 30.6-9.5 15.1 0 21.9 4.2 30.6 9.5 10 6.1 21.3 13 43.1 13s33.1-6.9 43.1-13c8.7-5.3 15.6-9.5 30.6-9.5 15.1 0 21.9 4.2 30.6 9.5 10 6.1 21.3 13 43.1 13s33.1-6.9 43.1-13c8.7-5.3 15.6-9.5 30.6-9.5 15.1 0 21.9 4.2 30.6 9.5 9.2 5.6 19.6 12 38.4 12.9V741H295.4V606.6z m533.9 181.3c-2.3 3-5.9 4.7-9.7 4.7H204.4c-3.8 0-7.3-1.7-9.7-4.7l-18-22.9h670.5l-17.9 22.9zM512 350.9c27.1 0 49.1-22 49.1-49.1 0-24.4-21-75.2-41.6-91.7-3.6-2.9-8.5-3.4-12.7-1.4-4.2 2-6.8 6.2-6.8 10.8 0 28.4-11.6 41.4-21.9 52.9-7.5 8.4-15.2 17-15.2 29.4 0 27.1 22 49.1 49.1 49.1z m-16-62.6c7.7-8.6 18-20.2 23.8-38.8 9.5 17.6 17.4 40.5 17.4 52.2 0 13.8-11.3 25.1-25.1 25.1S487 315.5 487 301.7c-0.1-3.2 4.1-7.9 9-13.4z"
+          fill="#FF8200" p-id="12165"></path>
+      </svg>
+      <!--他的生日还有标签string-->
+      <span class="together we">她的生日还有：</span>
+      <!--天数数字标签number-->
+      <u class="days"><b id="herBirthday_day">
+        </b></u>
+      <!--天字标签string-->
+      <span class="tian">天</span>
+      <!--小时数字标签number-->
+      <u class="days"><b id="herBirthday_hour">
+        </b></u>
+      <!--时字标签-->
+      <span class="days">时</span>
+      <!--分钟数字标签-->
+      <u class="days"><b id="herBirthday_minute">
+        </b></u>
+      <!--分字标签-->
+      <span class="days">分</span>
+      <!--秒数数字标签-->
+      <u class="days"><b id="herBirthday_second">
+        </b></u>
+      <!--秒字标签-->
+      <span class="days">秒</span>
+    </div>
+    <div><svg t="1633846827450" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
+        p-id="14230" width="30" height="200">
+        <path d="M517.973333 512m-474.624 0a474.624 474.624 0 1 0 949.248 0 474.624 474.624 0 1 0-949.248 0Z"
+          fill="#040000" p-id="14231"></path>
+        <path d="M517.973333 512m-433.152 0a433.152 433.152 0 1 0 866.304 0 433.152 433.152 0 1 0-866.304 0Z"
+          fill="#F3C81E" p-id="14232"></path>
+        <path
+          d="M121.344 599.04c0-252.757333 204.8-457.557333 457.557333-457.557333 97.962667 0 188.757333 30.890667 263.168 83.456-79.36-89.6-195.072-146.090667-324.266666-146.090667C278.698667 78.848 84.821333 272.725333 84.821333 512c0 74.922667 19.114667 145.578667 52.565334 207.018667-10.410667-38.229333-16.042667-78.506667-16.042667-119.978667z"
+          fill="#F6D85E" p-id="14233"></path>
+        <path d="M347.818667 391.168m-63.488 0a63.488 63.488 0 1 0 126.976 0 63.488 63.488 0 1 0-126.976 0Z"
+          fill="#040000" p-id="14234"></path>
+        <path
+          d="M600.405333 428.373333l-28.330666-18.773333c1.536-2.389333 39.594667-58.368 98.645333-62.805333 36.181333-2.730667 71.168 14.336 104.106667 50.688l-25.258667 22.869333c-25.429333-28.16-51.029333-41.301333-76.288-39.424-41.984 2.901333-72.533333 47.104-72.874667 47.445333zM521.557333 823.296l-14.506666-30.890667c30.890667-14.506667 49.322667-30.037333 51.712-43.349333 2.730667-14.677333-13.482667-31.232-26.624-44.714667-5.461333-5.461333-10.410667-10.752-14.165334-15.701333l-9.216-12.629333 11.776-10.410667c14.677333-12.8 31.402667-31.744 27.818667-48.64-4.778667-22.186667-42.154667-38.4-54.954667-42.325333l9.898667-32.597334c6.997333 2.048 68.608 22.016 78.336 67.754667 4.949333 22.698667-3.925333 46.08-26.282667 69.461333 0.341333 0.341333 0.682667 0.853333 1.194667 1.194667 16.554667 16.896 41.472 42.496 35.669333 74.581333-4.437333 25.770667-27.648 48.128-70.656 68.266667z"
+          fill="#080103" p-id="14235"></path>
+        <path
+          d="M864.597333 644.949333c0 68.266667-102.570667 123.562667-102.570666 123.562667s-102.570667-55.296-102.570667-123.562667 102.570667 0.853333 102.570667 0.853334 102.570667-69.12 102.570666-0.853334z"
+          fill="#E22924" p-id="14236"></path>
+        <path
+          d="M762.026667 787.797333l-8.021334-4.437333c-4.608-2.389333-111.445333-60.928-111.445333-138.581333 0-25.429333 11.605333-36.864 21.333333-42.154667 16.554667-8.704 39.594667-6.144 70.485334 8.021333 11.093333 5.12 20.992 10.581333 27.818666 14.848 6.826667-4.096 16.725333-9.728 27.818667-14.848 30.890667-14.165333 53.930667-16.896 70.485333-8.021333 9.728 5.12 21.333333 16.725333 21.333334 42.154667 0 77.482667-107.008 136.021333-111.445334 138.581333l-8.362666 4.437333z m-76.117334-155.989333c-2.56 0-4.608 0.341333-6.144 1.194667-3.072 1.536-3.242667 9.557333-3.242666 11.946666 0 43.178667 55.808 85.845333 85.504 103.765334 29.696-18.090667 85.504-60.757333 85.504-103.765334 0-2.389333-0.170667-10.410667-3.242667-11.946666-10.410667-5.461333-46.933333 9.728-72.704 26.965333l-9.557333 6.485333-9.557334-6.485333c-22.016-14.848-51.712-28.16-66.56-28.16z"
+          fill="#070001" p-id="14237"></path>
+      </svg>
+      <span class="together we">我们第一次接吻：</span>
+      <!--天数数字标签number-->
+      <u class="days"><b id="kissTime_day">
+        </b></u>
+      <!--天字标签string-->
+      <span class="tian">天</span>
+      <!--小时数字标签number-->
+      <u class="days"><b id="kissTime_hour">
+        </b></u>
+      <!--时字标签-->
+      <span class="days">时</span>
+      <!--分钟数字标签-->
+      <u class="days"><b id="kissTime_minute">
+        </b></u>
+      <!--分字标签-->
+      <span class="days">分</span>
+      <!--秒数数字标签-->
+      <u class="days"><b id="kissTime_second">
+        </b></u>
+      <!--秒字标签-->
+      <span class="days">秒</span>
+    </div>
+    <div><svg t="1633847127622" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
+        p-id="41684" width="30" height="200">
+        <path
+          d="M605.577 573.33l-24.754-10.439c-8.798-137.788-25.5-198.183-84.701-235.612-17.447-11.333-51.149-63.824-70.534-69.043 5.219-7.009 134.806-65.763 178.2-84.553 13.571 50.254 33.851 118.85 59.5 184.911 52.044 133.911-57.711 214.736-57.711 214.736zM852.374 586.154c-45.631 59.052 13.868 103.788-41.606 175.367-14.017 18.043-28.93 33.85-43.991 47.122-10.14 0.149-18.938-2.386-25.947-7.755-32.508-25.35-13.868-103.788 41.606-175.366 14.166-18.343 33.254-35.044 53.385-49.211 17.299-4.473 25.65-1.938 16.553 9.843zM640.472 771.662c0 16.254-11.483 31.315-30.868 43.543-9.395 0.745-18.939 1.193-28.78 1.193-90.666 0-89.473-74.561-164.034-74.561-25.202 0 1.193-23.561 45.035-44.14h0.149c4.92-0.447 9.692-0.596 14.464-0.596 90.667 0 164.034 33.403 164.034 74.561z"
+          fill="#E27E47" p-id="41685"></path>
+        <path
+          d="M580.674 578.698c-54.28-0.745-163.121-16.993-203.7-120.789-34.746-88.876-49.658-103.788-94.394-148.525 144.051-23.561 341.936-98.569 298.094 269.314z"
+          fill="#E27E47" p-id="41686"></path>
+        <path
+          d="M342.818 203.782v44.736c65.071 0 114.431 18.432 146.708 54.784 43.708 49.225 60.127 133.293 48.887 250.069l-57.957 25.132c-3.394 0.184-8.088 0.357-13.765 0.357-117.217 0-154.832-57.067-166.839-91.134-30.292-85.633-68.811-168.051-93.214-217.401 18.983-5.652 42.641-11.675 68.549-15.957 23.724-3.88 46.474-5.849 67.616-5.85l0.015-44.736m-0.016 0c-25.824 0.001-51.255 2.579-74.835 6.436-70.386 11.632-124.517 34.746-124.517 34.746s67.702 126.157 114.228 257.682c38.292 108.647 157.128 120.951 209.014 120.951 15.199 0 24.66-1.057 24.66-1.057l88.728-38.474c0.298-1.789 0.447-3.579 0.596-5.368 36.663-307.662-105.941-374.922-237.874-374.916z"
+          fill="#0F3944" p-id="41687"></path>
+        <path
+          d="M553.57 158.757a2316.936 2316.936 0 0 0 7.028 26.589c19.047 70.534 39.566 134.271 60.992 189.454 34.178 87.943-21.179 144.319-38.409 159.138l-2.717 1.014c-3.823-97.474-24.543-175.403-61.745-232.055-13.382-20.587-29.33-38.838-47.552-54.375a233.188 233.188 0 0 0-29.158-21.018c36.687-31.515 79.871-54.428 111.561-68.747m31.28-60.529s-145.692 46.228-218.91 145.096c27.289 7.307 53.236 19.833 76.35 39.367 14.166 12.079 27.289 26.693 38.921 44.588 35.938 54.727 58.009 138.683 54.877 264.243l-58.455 28.333 0.895 0.895 115.867-43.246 11.184-4.175s109.754-80.825 57.711-214.736c-25.649-66.061-45.93-134.657-59.5-184.911-12.23-45.182-18.94-75.454-18.94-75.454z"
+          fill="#0F3944" p-id="41688"></path>
+        <path
+          d="M391.187 163.407c16.335 0 31.63 4.469 43.647 12.663-13.123 9.692-25.799 20.43-37.728 31.912-17.748-2.863-35.863-4.138-53.798-4.139a395.9 395.9 0 0 0-30.009 1.156c9.693-15.509 25.649-28.632 45.93-35.939 10.688-3.833 21.535-5.653 31.958-5.653m0.001-44.737c-15.911 0-31.745 2.786-47.063 8.28-28.985 10.443-53.384 29.733-68.762 54.338l-46.894 75.031 88.225-6.713a352.51 352.51 0 0 1 26.614-1.027c16.297 0 32 1.2 46.673 3.567l22.054 3.558 16.095-15.492c10.596-10.199 21.794-19.672 33.283-28.158l50.695-37.443-52.072-35.504c-19.609-13.37-43.416-20.437-68.848-20.437zM729.884 928.219a22.185 22.185 0 0 1-15.757-6.531c-1.646-1.638-17.322-17.745-61.731-76.956l-7.638-10.063c-22.856-29.941-46.491-60.901-56.175-118.977-13.66-81.937-56.911-135.578-57.348-136.11-7.806-9.546-6.437-23.635 3.095-31.463 9.509-7.842 23.577-6.51 31.426 3.014 2.09 2.519 51.231 62.882 66.952 157.204 7.857 47.11 26.278 71.241 47.613 99.186l7.871 10.369c42.414 56.554 57.501 72.092 57.646 72.245 8.621 8.789 8.556 22.929-0.197 31.594a22.33 22.33 0 0 1-15.757 6.488z"
+          fill="#0F3944" p-id="41689"></path>
+        <path
+          d="M476.438 741.837c65.171 0 105.516 18.727 117.054 29.696-1.697 1.584-4.203 3.593-7.735 5.82-18.518 11.666-56.96 24.132-109.319 24.132-30.097 0-41.629-10.612-60.735-28.193-5.072-4.668-10.59-9.746-16.773-14.774 19.977-7.631 42.738-14.067 64.816-16.085h0.255l2.019-0.183c3.101-0.282 6.412-0.413 10.418-0.413m0-44.736c-4.772 0-9.544 0.149-14.464 0.596h-0.149c-88.131 7.158-191.771 73.965-149.42 73.965 74.561 0 73.368 74.561 164.034 74.561 54.877 0 103.341-12.228 133.166-31.018 19.386-12.228 30.868-27.289 30.868-43.543-0.001-41.158-73.368-74.561-164.035-74.561z"
+          fill="#0F3944" p-id="41690"></path>
+        <path
+          d="M788.972 646.709c0.185 7.908 0.806 15.329 1.377 22.152 2.166 25.876 3.473 41.495-14.909 65.215-11.942 15.371-24.807 29.167-38.225 40.99-26.652 23.465-47.031 31.72-57.145 33.318-1.589-15.88 8.332-59.209 48.242-110.705 15.08-19.442 38.141-37.21 60.66-50.97m59.918-72.471c-3.367 0-7.804 0.712-13.069 2.074-34.745 8.799-105.727 46.079-142.858 93.947-55.474 71.578-74.114 150.016-41.606 175.366 6.883 5.288 15.474 7.8 25.274 7.8 25.02 0 57.893-16.386 90.146-44.782 15.061-13.272 29.974-29.079 43.991-47.122 55.474-71.579-4.026-116.316 41.606-175.367 6.329-8.196 4.214-11.917-3.484-11.916zM591.228 615.637l18.639 59.322 42.055-45.803-60.694-13.519z"
+          fill="#0F3944" p-id="41691"></path>
+        <path d="M658.755 834.616l-15.637 60.943 60.596-16.93-44.959-44.013z" fill="#0F3944" p-id="41692"></path>
+      </svg>
+      <span class="together we">我们第一次嘿咻：</span>
+      <!--天数数字标签number-->
+      <u class="days"><b id="makeLoveTime_day">
+        </b></u>
+      <!--天字标签string-->
+      <span class="tian">天</span>
+      <!--小时数字标签number-->
+      <u class="days"><b id="makeLoveTime_hour">
+        </b></u>
+      <!--时字标签-->
+      <span class="days">时</span>
+      <!--分钟数字标签-->
+      <u class="days"><b id="makeLoveTime_minute">
+        </b></u>
+      <!--分字标签-->
+      <span class="days">分</span>
+      <!--秒数数字标签-->
+      <u class="days"><b id="makeLoveTime_second">
+        </b></u>
+      <!--秒字标签-->
+      <span class="days">秒</span>
+    </div>
+    <div><svg t="1633847480973" class="icon" viewBox="0 0 1025 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
+        p-id="51034" width="30" height="200">
+        <path
+          d="M778.479 1002.496c-12.288 0-24.576-3.071-37.888-10.239L533.742 883.713c-5.12-3.072-12.288-5.12-20.479-5.12-7.168 0-15.36 2.048-20.48 4.096L286.959 992.257c-12.288 7.168-24.576 10.239-38.912 10.239-24.576 0-48.128-11.264-64.513-29.695-16.384-18.433-22.527-43.008-18.432-67.584l39.937-229.376c2.048-14.336-3.072-28.672-13.313-38.912L25.839 476.16C2.287 453.633-5.905 420.864 4.335 390.144c10.239-30.721 35.84-52.225 67.584-57.345l229.376-33.792c14.336-2.048 27.647-11.264 33.791-23.552l102.4-208.896c14.336-28.672 43.008-46.08 74.752-46.08s60.416 17.408 74.752 46.08l102.4 208.896c7.168 13.313 19.456 21.504 33.792 23.552L952.559 332.8c31.744 5.12 57.344 26.624 67.584 56.32 10.24 30.72 2.048 63.488-20.48 86.017L834.799 636.928c-11.265 10.24-15.36 24.576-13.313 38.912l38.912 228.352c4.096 24.576-2.048 49.152-18.432 67.584C826.607 991.232 803.055 1002.496 778.479 1002.496z"
+          p-id="51035" fill="#e72ac5"></path>
+      </svg>
+      <span class="together we">我们第一次拥抱：</span>
+      <!--天数数字标签number-->
+      <u class="days"><b id="embraceTime_day">
+        </b></u>
+      <!--天字标签string-->
+      <span class="tian">天</span>
+      <!--小时数字标签number-->
+      <u class="days"><b id="embraceTime_hour">
+        </b></u>
+      <!--时字标签-->
+      <span class="days">时</span>
+      <!--分钟数字标签-->
+      <u class="days"><b id="embraceTime_minute">
+        </b></u>
+      <!--分字标签-->
+      <span class="days">分</span>
+      <!--秒数数字标签-->
+      <u class="days"><b id="embraceTime_second">
+        </b></u>
+      <!--秒字标签-->
+      <span class="days">秒</span>
+    </div>
+    <div><svg t="1633919617117" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
+        p-id="5530" width="30" height="200">
+        <path
+          d="M559.3 365.4c32-22.6 74-30.4 114.2-17.5 68 21.8 105.4 94.7 83.6 162.7L712.3 650l55.5-48.3c15.2-13.2 39.2-17.9 57.1 1.4s7.1 45.4-6.1 56.9L690.7 764.3 430 679.8l7.6-16.9M644.5 500.6l-44.2 21.1M633.2 534.2l-21-44.2M723.1 528.5l-44.3 21.1M711.8 562.1l-21.1-44.2"
+          fill="#FDEB9D" p-id="5531"></path>
+        <path
+          d="M428.3 749.5L657.9 824c13.4 4.3 27.7-3.1 32-16.5l7.1-22.2c3-9.5-2.2-19.7-11.7-22.7L442 683.7c-9.7-3.1-20 2.2-23.1 11.8l-7 21.9c-4.3 13.4 3 27.8 16.4 32.1z"
+          fill="#B5DFFD" p-id="5532"></path>
+        <path
+          d="M462.6 198.8c-71.4 0-118.4 57.9-118.4 129.3l-4.4 171.7-70-68c-10.4-17.2-22.6-30.1-45.5-17.1s-4.3 36.7 4.7 51.8L316.6 597l242.6 0.7V328.1c0.1-71.4-85.6-129.3-96.6-129.3zM362.2 341.7l-34.7 34.6M362.8 377.1l-34.6-34.6"
+          fill="#FDEB9D" p-id="5533"></path>
+        <path d="M446.7 341.7L412 376.3M447.3 377.1l-34.6-34.6" fill="#FDEB9D" p-id="5534"></path>
+        <path d="M530 341.7l-34.6 34.6M530.7 377.1L496 342.5" fill="#FDEB9D" p-id="5535"></path>
+        <path
+          d="M540 662.9H342.3c-13.7 0-24.9-11.1-24.9-24.9v-19.8c0-11.4 9.3-20.7 20.7-20.7h206.1c11.4 0 20.7 9.3 20.7 20.7V638c0 13.8-11.2 24.9-24.9 24.9z"
+          fill="#B5DFFD" p-id="5536"></path>
+        <path
+          d="M824.9 603.1L656.1 749.4l22.3 5.9 28.4-2 122.7-106.8zM550.7 597.6h-45.2V229.2l42.9 44.2zM710 661.7l-42.8-14.4 78.6-221.1 20.8 67.1z"
+          fill="#FFD629" p-id="5537"></path>
+        <path
+          d="M831.3 597.1c-15.3-16.6-43.5-24.4-69.2-2.1l-31.9 27.8 35.2-109.7c11.3-35.1 8.2-72.5-8.7-105.3s-45.5-57.1-80.6-68.3c-36.5-11.7-75.1-7.9-108.1 10.1V328c0-76.1-61.9-138-138-138s-138 61.9-138 138v115.2l-22-36.1c-12.3-20.4-38.4-35.1-66.5-19.2-10.6 6-17.8 15.3-20.9 26.9-4.2 16 0.4 31.8 6.1 41.2 0 0.1 0.1 0.2 0.1 0.2l93 144.4c-3.7 4.9-5.9 11-5.9 17.6V638c0 18.5 15.1 33.6 33.6 33.6H424l-2.1 4.6c-0.3 0.8-0.5 1.6-0.6 2.4-5.1 3.4-8.9 8.3-10.8 14.3l-7 21.9c-2.8 8.7-2 17.9 2.1 26.1 4.2 8.1 11.2 14.1 19.9 16.9l229.6 74.5c3.4 1.1 7 1.7 10.5 1.7 5.4 0 10.7-1.3 15.6-3.8 8.1-4.2 14.1-11.3 16.9-19.9l7.1-22.2c2.5-7.7 1.2-15.7-2.7-22.1l121.6-99.1c0.1-0.1 0.2-0.1 0.2-0.2 8.3-7.3 17.5-20.9 18.4-37.4 0.9-12.1-3.1-23.2-11.4-32.2zM199.5 419.2c1.9-7 6.1-12.5 12.6-16.2 18.1-10.2 34.6-0.8 43 13l38.1 63c2 3.3 6 4.9 9.8 3.9 3.8-1 6.4-4.5 6.4-8.4V328.1c0-66.5 54.1-120.6 120.6-120.6s120.6 54.1 120.6 120.6V589h-3.9c-0.8-0.1-1.7-0.1-2.5-0.1H305.4c-0.8 0-1.7 0.1-2.5 0.1h-7.8l-91.5-142c-4-6.7-6.8-17.8-4.1-27.8zM293.4 638v-19.8c0-6.1 4.5-11.1 10.3-11.9h242.1c5.8 0.8 10.3 5.8 10.3 11.9V638c0 4.3-1.7 8.4-4.7 11.4-3.1 3.1-7.1 4.7-11.4 4.7H309.6c-8.9 0.1-16.2-7.1-16.2-16.1z m395.3 144.6l-7.1 22.2c-1.4 4.3-4.3 7.7-8.3 9.8-4 2-8.5 2.4-12.7 1.1L431 741.2c-4.3-1.4-7.7-4.3-9.8-8.3-2-4-2.4-8.5-1.1-12.8l7-21.9c0.8-2.5 2.5-4.5 4.8-5.6 1.4-0.7 2.9-1.1 4.4-1.1 1 0 2 0.2 3 0.5l87.7 28.4L683.2 771c4.6 1.8 7.1 6.9 5.5 11.6z m136.9-154.4c-0.6 10.3-6.6 20-12.4 25.1L688.9 754.6l-0.9-0.3-157-50.8-89.1-28.9 1.3-2.9H540c9 0 17.4-3.5 23.8-9.8 6.3-6.3 9.8-14.8 9.8-23.8v-19.8c0-6.7-2.3-12.9-6.1-17.8 0.3-0.9 0.5-1.8 0.5-2.7V370.1c30.6-20 67.8-25.1 102.8-13.9 30.7 9.8 55.7 31 70.4 59.7 14.7 28.7 17.4 61.3 7.6 92L704 647.3c-1.2 3.7 0.2 7.8 3.5 9.9 3.3 2.1 7.6 1.9 10.5-0.7l55.5-48.3c12.2-10.6 30.9-14.5 45 0.7 5.1 5.6 7.4 12 7.1 19.3z"
+          fill="#666666" p-id="5538"></path>
+        <path
+          d="M640.8 492.7l-14.4 6.8-6.4-13.4c-2.1-4.3-7.3-6.2-11.6-4.1-4.3 2.1-6.2 7.3-4.1 11.6l6.4 13.4-14.2 6.7c-4.3 2.1-6.2 7.3-4.1 11.6 1.5 3.1 4.6 5 7.9 5 1.3 0 2.5-0.3 3.7-0.8l14.2-6.7 7.2 15.2c1.5 3.1 4.6 5 7.9 5 1.3 0 2.5-0.3 3.7-0.8 4.3-2.1 6.2-7.3 4.1-11.6l-7.2-15.2 14.4-6.8c4.3-2.1 6.2-7.3 4.1-11.6-2.1-4.5-7.3-6.3-11.6-4.3zM703.9 565.9c1.5 3.1 4.6 5 7.9 5 1.3 0 2.5-0.3 3.7-0.8 4.3-2.1 6.2-7.3 4.1-11.6l-7.2-15.2 14.4-6.8c4.3-2.1 6.2-7.3 4.1-11.6-2.1-4.3-7.3-6.2-11.6-4.1l-14.4 6.8-6.4-13.4c-2.1-4.3-7.3-6.2-11.6-4.1-4.3 2.1-6.2 7.3-4.1 11.6l6.4 13.4-14.2 6.7c-4.3 2.1-6.2 7.3-4.1 11.6 1.5 3.1 4.6 5 7.9 5 1.3 0 2.5-0.3 3.7-0.8l14.2-6.7 7.2 15zM321.4 382.5c1.7 1.7 3.9 2.5 6.2 2.5 2.2 0 4.5-0.9 6.2-2.5l11.1-11.1 11.9 11.9c1.7 1.7 3.9 2.5 6.2 2.5 2.2 0 4.5-0.9 6.2-2.5 3.4-3.4 3.4-8.9 0-12.3l-11.9-11.9 11.2-11.2c3.4-3.4 3.4-8.9 0-12.3-3.4-3.4-8.9-3.4-12.3 0L345 346.8l-10.5-10.5c-3.4-3.4-8.9-3.4-12.3 0-3.4 3.4-3.4 8.9 0 12.3l10.5 10.5-11.1 11.1c-3.6 3.4-3.6 8.9-0.2 12.3zM405.9 382.5c1.7 1.7 3.9 2.5 6.2 2.5 2.2 0 4.5-0.9 6.2-2.5l11.1-11.1 11.9 11.9c1.7 1.7 3.9 2.5 6.2 2.5 2.2 0 4.5-0.9 6.2-2.5 3.4-3.4 3.4-8.9 0-12.3l-11.9-11.9 11.2-11.2c3.4-3.4 3.4-8.9 0-12.3-3.4-3.4-8.9-3.4-12.3 0l-11.2 11.2-10.5-10.5c-3.4-3.4-8.9-3.4-12.3 0-3.4 3.4-3.4 8.9 0 12.3l10.5 10.5-11.1 11.1c-3.6 3.4-3.6 8.9-0.2 12.3zM489.2 382.5c1.7 1.7 3.9 2.5 6.2 2.5 2.2 0 4.5-0.9 6.2-2.5l11.1-11.1 11.9 11.9c1.7 1.7 3.9 2.5 6.2 2.5s4.5-0.9 6.2-2.5c3.4-3.4 3.4-8.9 0-12.3l-11.9-11.9 11.2-11.2c3.4-3.4 3.4-8.9 0-12.3-3.4-3.4-8.9-3.4-12.3 0l-11.2 11.2-10.5-10.5c-3.4-3.4-8.9-3.4-12.3 0-3.4 3.4-3.4 8.9 0 12.3l10.5 10.5-11.1 11.1c-3.6 3.4-3.6 8.9-0.2 12.3z"
+          fill="#666666" p-id="5539"></path>
+      </svg>
+      <span class="together we">我们第一次牵手：</span>
+      <!--天数数字标签number-->
+      <u class="days"><b id="handTime_day">
+        </b></u>
+      <!--天字标签string-->
+      <span class="tian">天</span>
+      <!--小时数字标签number-->
+      <u class="days"><b id="handTime_hour">
+        </b></u>
+      <!--时字标签-->
+      <span class="days">时</span>
+      <!--分钟数字标签-->
+      <u class="days"><b id="handTime_minute">
+        </b></u>
+      <!--分字标签-->
+      <span class="days">分</span>
+      <!--秒数数字标签-->
+      <u class="days"><b id="handTime_second">
+        </b></u>
+      <!--秒字标签-->
+      <span class="days">秒</span>
+    </div>
+    <div><svg t="1633847692589" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
+        p-id="53985" width="30" height="200">
+        <path d="M5.07904 644.21888a506.92096 211.8656 0 1 0 1013.84192 0 506.92096 211.8656 0 1 0-1013.84192 0Z"
+          fill="#EEEEEE" p-id="53986"></path>
+        <path
+          d="M923.58656 644.21888c0 91.68896-184.23808 165.96992-411.56608 165.96992-227.36896 0-411.68896-74.30144-411.68896-165.96992 0-91.66848 184.32-165.96992 411.68896-165.96992 227.328 0.02048 411.56608 74.30144 411.56608 165.96992z"
+          fill="#BEBEBE" opacity=".5" p-id="53987"></path>
+        <path d="M189.19424 456.84736h645.59104v292.9664H189.19424z" fill="#FEB906" p-id="53988"></path>
+        <path d="M189.19424 456.84736h645.59104v292.9664H189.19424z" fill="#FCD345" p-id="53989"></path>
+        <path d="M189.19424 574.5664h645.59104v113.74592H189.19424z" fill="#C17750" p-id="53990"></path>
+        <path d="M189.19424 456.84736h645.59104v39.99744H189.19424z" fill="#822917" p-id="53991"></path>
+        <path d="M189.19424 456.84736h645.59104v39.99744H189.19424zM189.19424 603.3408h645.59104v56.15616H189.19424z"
+          fill="#B35F3A" p-id="53992"></path>
+        <path
+          d="M614.62528 225.56672L189.19424 456.84736h75.65312c19.98848 0 14.97088 9.23648 10.69056 25.7024-4.28032 16.44544-9.97376 37.1712 12.1856 36.4544 22.17984-0.69632 4.99712-62.1568 16.44544-62.1568h82.96448c31.47776 0 15.01184 75.73504 42.22976 72.9088 27.15648-2.88768 20.02944-72.9088 33.60768-72.9088h54.3744c15.74912 0 14.99136 37.13024 30.74048 53.57568s43.6224 5.0176 70.79936-25.76384c6.16448-6.9632 25.06752-27.81184 50.7904-27.81184h165.10976l-220.16-231.28064z"
+          fill="#FFDE5D" p-id="53993"></path>
+        <path
+          d="M544.62464 397.78304c0 13.29152-17.98144 24.10496-40.18176 24.10496-22.17984 0-40.22272-10.79296-40.22272-24.10496 0-13.37344 18.04288-24.18688 40.22272-24.18688 22.20032 0 40.18176 10.81344 40.18176 24.18688z"
+          fill="#FCD345" p-id="53994"></path>
+        <path d="M355.10272 389.71392a25.25184 15.13472 0 1 0 50.50368 0 25.25184 15.13472 0 1 0-50.50368 0Z"
+          fill="#FCD345" p-id="53995"></path>
+        <path d="M543.51872 330.17856a36.7616 22.07744 0 1 0 73.5232 0 36.7616 22.07744 0 1 0-73.5232 0Z" fill="#FCD345"
+          p-id="53996"></path>
+        <path d="M658.39104 405.23776a41.55392 24.92416 0 1 0 83.10784 0 41.55392 24.92416 0 1 0-83.10784 0Z"
+          fill="#FCD345" p-id="53997"></path>
+        <path
+          d="M721.59232 238.30528s-2.53952-33.6896 30.72-70.38976l28.59008 15.79008s-43.08992 15.79008-49.664 57.58976l-9.64608-2.99008z"
+          fill="#9FE283" p-id="53998"></path>
+        <path
+          d="M700.45696 309.3504m-76.36992 0a76.36992 76.36992 0 1 0 152.73984 0 76.36992 76.36992 0 1 0-152.73984 0Z"
+          fill="#FF6F56" p-id="53999"></path>
+        <path
+          d="M687.53408 278.60992m-30.78144 0a30.78144 30.78144 0 1 0 61.56288 0 30.78144 30.78144 0 1 0-61.56288 0Z"
+          fill="#FFFFFF" p-id="54000"></path>
+      </svg>
+      <span class="together we">我们第一次做蛋糕：</span>
+      <!--天数数字标签number-->
+      <u class="days"><b id="makeCakeTime_day">
+        </b></u>
+      <!--天字标签string-->
+      <span class="tian">天</span>
+      <!--小时数字标签number-->
+      <u class="days"><b id="makeCakeTime_hour">
+        </b></u>
+      <!--时字标签-->
+      <span class="days">时</span>
+      <!--分钟数字标签-->
+      <u class="days"><b id="makeCakeTime_minute">
+        </b></u>
+      <!--分字标签-->
+      <span class="days">分</span>
+      <!--秒数数字标签-->
+      <u class="days"><b id="makeCakeTime_second">
+        </b></u>
+      <!--秒字标签-->
+      <span class="days">秒</span>
+    </div>
+  </div>
+
+  <a target="_blank" href="https://yourk.top/loveSpace/upload.php">
+    <button class="upload_a"><span class="imgUpload">图片上传</span></button>
+  </a>
+
+  <a target="_blank" href="https://yourk.top/loveSpace/gallary.php">
+    <button class="gallary_a"><span class="imgLook">图片查看</span></button>
+  </a>
+
+  <input type="file" id="upFile" accept="image/*" enctype="multipart/form-data" style="display: none;" name="upFile"
+    onchange="uploadFile()">
+</body>
+
+</html>
