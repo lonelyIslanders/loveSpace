@@ -6,10 +6,21 @@ const heixiu = document.getElementById('heixiu');
 const embrace = document.getElementById('embrace');
 const hand = document.getElementById('hand');
 const makeCake = document.getElementById('makeCake');
+const parting = document.getElementById('parting');
+
+
+const loveIcon = document.getElementById('love-icon');
 let loveData;
 
 async function fetchLoveData() {
     if (loveData !== undefined) {//已读取到数据，更新展示数据
+        if (loveData.partingTime !== '') {//🥹💔
+            console.log('🥹💔')
+            parting.innerHTML = await timeDiff(loveData.partingTime, new Date())
+        } else {
+            console.log('我们会永远在一起')
+            parting.innerHTML = '我们会永远在一起'
+        }
         togetherData.innerHTML = await timeDiff(loveData.togetherTime, new Date());
         hisBirthday.innerHTML = await timeDiff(loveData.hisBirthdayTime, new Date());
         herBirthday.innerHTML = await timeDiff(loveData.herBirthdayTime, new Date());
@@ -53,3 +64,11 @@ async function timeDiff(start, end) {
     return `<span class="underline">${Math.abs(days)}</span>天<span class="underline">${Math.abs(hours % 24)}</span>小时
     <span class="underline">${Math.abs(minutes % 60)}</span>分钟<span class="underline">${Math.abs(seconds % 60)}</span>秒`;
 }
+
+//图片上传
+async function openExplore() {
+
+}
+
+
+//获取歌曲及

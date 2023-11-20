@@ -10,8 +10,10 @@
 </head>
 
 <body>
-    <h1>LOVE💗SPACE</h1>
+    <h1>LOVE<span id="love-icon">💗</span>SPACE</h1>
     <div id="ourInfoShowDiv">
+        <p><img class="svg" src="./svg/broken-heart.svg"><span class="our">分开已有：<span id="parting" class="our"></span></span>
+        </p>
         <p><img class="svg" src="./svg/heart.svg"><span class="our">我们在一起：<span id="together" class="our"></span></span>
         </p>
         <p><img class="svg" src="./svg/birthday1.svg"><span class="our">他的生日：<span id="hisBirthday"
@@ -26,6 +28,9 @@
         <p><img class="svg" src="./svg/hand2.svg"><span class="our">第一次牵手：<span id="hand" class="our"></span></span></p>
         <p><img class="svg" src="./svg/cake.svg"><span class="our">第一次做蛋糕：<span id="makeCake" class="our"></span></span>
         </p>
+
+        <input type="file" id="upload-images" multiple accept="image/*" enctype="multipart/form-data"
+            style="display:none" capture="camera">
     </div>
 </body>
 <script src="./js/script.js"></script>
